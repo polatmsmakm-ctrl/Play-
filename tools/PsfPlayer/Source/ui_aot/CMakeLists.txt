@@ -18,3 +18,5 @@ list(APPEND PSFAOT_PROJECT_LIBS PsfCore)
 
 add_executable(PsfAot Main_Aot.cpp)
 target_link_libraries(PsfAot PUBLIC ${PSFAOT_PROJECT_LIBS})
+
+# Update: 2025-10-11

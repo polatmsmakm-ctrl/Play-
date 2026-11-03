@@ -183,7 +183,11 @@ private:
 
 	enum CVTBUFFERSIZE
 	{
-		CVTBUFFERSIZE = 0x800000,
+		//Must hold a whole framebuffer upload in PopulateFramebuffer:
+		//max width (FBW=63 -> 4032, rounded to 4096) x FRAMEBUFFER_HEIGHT (1024) x 4 bytes.
+		//It used to be 8MB, which overflowed with wide framebuffers
+		//(e.g. Tom and Jerry in War of the Whiskers crashed when a level started).
+		CVTBUFFERSIZE = 4096 * 1024 * 4,
 	};
 
 	typedef void (CGSH_OpenGL::*TEXTUREUPDATER)(uint32, uint32, unsigned int, unsigned int, unsigned int, unsigned int);

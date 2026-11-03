@@ -584,6 +584,15 @@ void CVif::Cmd_MPG(StreamType& stream, CODE nCommand)
 	uint32 nDstAddr = (m_CODE.nIMM * 8) + nTransfered;
 	nDstAddr &= (m_vpu.GetMicroMemorySize() - 1);
 
+	//A microprogram started by MSCAL might still be waiting to begin (see StartDelayedMicroProgram).
+	//It must run before we replace any microcode, otherwise it would execute the new code instead of
+	//the code that was loaded when it was started.
+	if(ResumeDelayedMicroProgram())
+	{
+		m_STAT.nVEW = 1;
+		return;
+	}
+
 	//Check if microprogram is running
 	if(!m_vpu.IsVuReady())
 	{

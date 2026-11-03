@@ -17,8 +17,38 @@ extern "C" int csops(pid_t pid, unsigned int ops, void* useraddr, size_t usersiz
 #define PLAY_CS_OPS_STATUS 0
 #define PLAY_CS_DEBUGGED 0x10000000
 
+extern "C" void MemFunc_InitJitArena(void);
+extern "C" bool MemFunc_IsJitReady(void);
+extern "C" const char* MemFunc_GetJitStatus(void);
+
+static bool IsDebuggerAttached()
+{
+	int flags = 0;
+	return (csops(getpid(), PLAY_CS_OPS_STATUS, &flags, sizeof(flags)) == 0) && (flags & PLAY_CS_DEBUGGED);
+}
+
+//Asks StikDebug to attach to us and run its universal.js script, which hands
+//out executable memory on iOS 26+ (TXM) devices.
+static void RequestJitFromStikDebug()
+{
+	NSString* bundleId = [[NSBundle mainBundle] bundleIdentifier];
+	NSString* urlString = [NSString stringWithFormat:@"stikdebug://enable-jit?bundle-id=%@&pid=%d&script-name=universal.js", bundleId, getpid()];
+	[[UIApplication sharedApplication] openURL:[NSURL URLWithString:urlString] options:@{} completionHandler:nil];
+}
+
 static bool IsJitAvailable()
 {
+	if(@available(iOS 26.0, *))
+	{
+		//On iOS 26+ an attached debugger alone isn't enough: the debugger must
+		//also prepare our code region. Only report JIT once that worked.
+		if(IsDebuggerAttached())
+		{
+			MemFunc_InitJitArena();
+		}
+		return MemFunc_IsJitReady();
+	}
+
 	//CS_DEBUGGED is set when a debugger is attached (StikJIT, SideStore, JitStreamer, Xcode, etc.)
 	{
 		int flags = 0;
@@ -167,7 +197,14 @@ static NSString* const reuseIdentifier = @"coverCell";
 	}
 	else
 	{
-		self.navigationItem.prompt = @"JIT: غير مفعّل ⚠️ (فعّله قبل تشغيل اللعبة)";
+		if(IsDebuggerAttached())
+		{
+			self.navigationItem.prompt = [NSString stringWithFormat:@"JIT: المصحح متصل بس الذاكرة ما تجهزت ⚠️ (%s)", MemFunc_GetJitStatus()];
+		}
+		else
+		{
+			self.navigationItem.prompt = @"JIT: غير مفعّل ⚠️ (فعّله قبل تشغيل اللعبة)";
+		}
 	}
 }
 
@@ -356,7 +393,16 @@ static NSString* const reuseIdentifier = @"coverCell";
 {
 	if([identifier isEqualToString:@"showEmulator"] && !IsJitAvailable())
 	{
-		UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"JIT غير مفعّل" message:@"بدون JIT راح تكون اللعبة بطيئة جداً أو يقفل التطبيق. فعّل JIT عن طريق StikJIT أو SideStore أو JitStreamer ثم ارجع. تبي تكمل؟" preferredStyle:UIAlertControllerStyleAlert];
+		UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"JIT غير مفعّل" message:@"بدون JIT اللعبة ما راح تشتغل. اضغط «فعّل JIT عن طريق StikDebug»، وبعدها ارجع للتطبيق وشغّل اللعبة." preferredStyle:UIAlertControllerStyleAlert];
+		{
+			UIAlertAction* stikAction = [UIAlertAction
+			    actionWithTitle:@"فعّل JIT عن طريق StikDebug"
+			              style:UIAlertActionStyleDefault
+			            handler:^(UIAlertAction*) {
+				          RequestJitFromStikDebug();
+			            }];
+			[alert addAction:stikAction];
+		}
 		{
 			UIAlertAction* continueAction = [UIAlertAction
 			    actionWithTitle:@"كمّل"

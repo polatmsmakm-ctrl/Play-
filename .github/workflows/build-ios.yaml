@@ -2,7 +2,7 @@ name: Build iOS
 
 on:
   push:
-    branches: [master]
+    branches: [master, ios26-jit]
   workflow_dispatch:
 jobs:
   build_ios:
@@ -33,6 +33,10 @@ jobs:
         fetch-depth: 0
     - name: Force Fetch Git Tags
       run: git fetch --tags --force
+    - name: Apply iOS 26 JIT patch to CodeGen
+      run: |
+        cd deps/CodeGen
+        git apply ../../patches/codegen-ios26-jit.patch
     - name: Set SHORT_HASH
       run: echo "VALUE=${LONG_HASH:0:8}" >> $GITHUB_OUTPUT
       id: short_hash
@@ -60,8 +64,10 @@ jobs:
     - name: Publish release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ios-latest
-        name: Play! iOS (latest)
+        tag_name: ${{ github.ref == 'refs/heads/master' && 'ios-latest' || format('ios-{0}', github.ref_name) }}
+        name: ${{ github.ref == 'refs/heads/master' && 'Play! iOS (latest)' || format('Play! iOS ({0} test)', github.ref_name) }}
+        prerelease: ${{ github.ref != 'refs/heads/master' }}
+        target_commitish: ${{ github.sha }}
         files: installer_ios/Play.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
